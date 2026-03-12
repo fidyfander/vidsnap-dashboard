@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>VidSnap</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+:root {
+  --bg:      #080810;
+  --card:    #10101c;
+  --border:  #1c1c2e;
+  --accent:  #7c3aed;
+  --cyan:    #06b6d4;
+  --green:   #10b981;
+  --red:     #ef4444;
+  --yellow:  #f59e0b;
+  --text:    #e2e8f0;
+  --muted:   #475569;
+  --mono:    'JetBrains Mono', monospace;
+  --sans:    'Syne', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── HEADER ── */
+.header {
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.logo {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.header-title { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+.header-sub { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+.btn-refresh {
+  width: 38px; height: 38px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-refresh:active { color: var(--accent); border-color: var(--accent); }
+.btn-refresh.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  padding: 10px 16px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 20px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.tab:active { opacity: 0.7; }
+
+/* ── CONTENT ── */
+.content { padding: 14px 16px 80px; }
+.panel { display: none; }
+.panel.active { display: block; animation: fadeUp 0.2s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+/* ── CARD ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.card-accent-line {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+}
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.card-row:last-child { margin-bottom: 0; }
+.card-label { font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+.card-value { font-size: 13px; font-weight: 700; font-family: var(--mono); }
+.card-title { font-size: 15px; font-weight: 700; }
+.card-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; word-break: break-all; }
+
+/* ── STATUS BADGES ── */
+.badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+.badge-green  { background: rgba(16,185,129,0.15); color: var(--green); }
+.badge-yellow { background: rgba(245,158,11,0.15);  color: var(--yellow); }
+.badge-red    { background: rgba(239,68,68,0.15);   color: var(--red); }
+.badge-blue   { background: rgba(6,182,212,0.15);   color: var(--cyan); }
+.badge-purple { background: rgba(124,58,237,0.15);  color: var(--accent); }
+
+/* ── PROGRESS BAR ── */
+.progress-wrap { margin: 10px 0 4px; }
+.progress-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  transition: width 0.4s ease;
+}
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── ACTION BUTTONS ── */
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: opacity 0.15s;
+}
+.btn:active { opacity: 0.6; }
+.btn-danger  { background: rgba(239,68,68,0.1);   border-color: rgba(239,68,68,0.3);   color: var(--red); }
+.btn-primary { background: rgba(124,58,237,0.15); border-color: rgba(124,58,237,0.4);  color: var(--accent); }
+.btn-cyan    { background: rgba(6,182,212,0.1);   border-color: rgba(6,182,212,0.3);   color: var(--cyan); }
+
+/* ── STAT GRID ── */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+}
+.stat-icon { font-size: 22px; margin-bottom: 4px; }
+.stat-val { font-size: 20px; font-weight: 800; font-family: var(--mono); }
+.stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ── BATTERY BAR ── */
+.battery-wrap { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.battery-body {
+  flex: 1; height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 5px;
+  position: relative;
+  overflow: hidden;
+}
+.battery-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.battery-cap {
+  width: 5px; height: 10px;
+  background: var(--border);
+  border-radius: 0 3px 3px 0;
+  position: absolute; right: -7px; top: 50%;
+  transform: translateY(-50%);
+}
+.battery-pct { font-size: 14px; font-weight: 700; font-family: var(--mono); min-width: 40px; text-align: right; }
+
+/* ── WIFI BARS ── */
+.signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 20px; }
+.signal-bar {
+  width: 5px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.signal-bar.active { background: var(--green); }
+.signal-bar:nth-child(1) { height: 5px; }
+.signal-bar:nth-child(2) { height: 9px; }
+.signal-bar:nth-child(3) { height: 13px; }
+.signal-bar:nth-child(4) { height: 18px; }
+
+/* ── FILE LIST ── */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+.file-icon { font-size: 22px; flex-shrink: 0; }
+.file-info { flex: 1; min-width: 0; }
+.file-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+.file-size { font-size: 12px; font-family: var(--mono); color: var(--muted); flex-shrink: 0; }
+
+/* ── EMPTY STATE ── */
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+.empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+.empty-text { font-size: 14px; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+
+/* ── LOADER ── */
+.loader {
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px;
+  gap: 6px;
+}
+.loader-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bounce 1.2s infinite ease;
+}
+.loader-dot:nth-child(2) { animation-delay: 0.15s; }
+.loader-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%,60%,100% { transform:scale(1); opacity:0.4; } 30% { transform:scale(1.3); opacity:1; } }
+
+/* ── REC BUTTON ── */
+.rec-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 2px solid var(--red);
+  background: rgba(239,68,68,0.08);
+  color: var(--red);
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 10px;
+  transition: background 0.15s;
+}
+.rec-btn:active { background: rgba(239,68,68,0.2); }
+.rec-btn.recording {
+  background: rgba(239,68,68,0.15);
+  animation: pulse-red 1.5s infinite;
+}
+@keyframes pulse-red {
+  0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
+  50% { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+}
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); }
+.rec-dot.blink { animation: blink 1s infinite; }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">📥</div>
+    <div>
+      <div class="header-title">VidSnap</div>
+      <div class="header-sub" id="last-update">chargement...</div>
+    </div>
+  </div>
+  <button class="btn-refresh" id="btn-refresh" onclick="refreshAll()">↻</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('downloads')" id="tab-downloads">
+    📥 <span>Téléchargements</span>
+  </button>
+  <button class="tab" onclick="showTab('files')" id="tab-files">
+    📂 <span>Fichiers</span>
+  </button>
+  <button class="tab" onclick="showTab('device')" id="tab-device">
+    📱 <span>Appareil</span>
+  </button>
+  <button class="tab" onclick="showTab('rec')" id="tab-rec">
+    🎙️ <span>Audio</span>
+  </button>
+</div>
+
+<div class="content">
+
+  <!-- ── DOWNLOADS ── -->
+  <div class="panel active" id="panel-downloads">
+    <div id="downloads-list">
+      <div class="loader">
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FILES ── -->
+  <div class="panel" id="panel-files">
+    <div id="files-list">
+      <div class="loader">
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DEVICE ── -->
+  <div class="panel" id="panel-device">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🔋</div>
+        <div class="stat-val" id="stat-batt">--</div>
+        <div class="stat-lbl">Batterie</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🌡️</div>
+        <div class="stat-val" id="stat-temp">--</div>
+        <div class="stat-lbl">Temp.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💾</div>
+        <div class="stat-val" id="stat-storage">--</div>
+        <div class="stat-lbl">Stockage libre</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📶</div>
+        <div class="stat-val" id="stat-ping">--</div>
+        <div class="stat-lbl">Ping</div>
+      </div>
+    </div>
+
+    <!-- Batterie détail -->
+    <div class="card">
+      <div class="card-accent-line"></div>
+      <div class="card-row">
+        <span class="card-label">Batterie</span>
+        <span class="badge" id="badge-charge">--</span>
+      </div>
+      <div class="battery-wrap">
+        <div class="battery-body">
+          <div class="battery-fill" id="batt-fill" style="width:0%"></div>
+          <div class="battery-cap"></div>
+        </div>
+        <div class="battery-pct" id="batt-pct">--%</div>
+      </div>
+      <div class="card-row" style="margin-top:6px">
+        <span class="card-label">Voltage</span>
+        <span class="card-value" id="batt-volt">-- V</span>
+      </div>
+    </div>
+
+    <!-- Réseau -->
+    <div class="card">
+      <div class="card-accent-line"></div>
+      <div class="card-row">
+        <span class="card-label">Réseau</span>
+        <div class="signal-bars" id="signal-bars">
+          <div class="signal-bar"></div>
+          <div class="signal-bar"></div>
+          <div class="signal-bar"></div>
+          <div class="signal-bar"></div>
+        </div>
+      </div>
+      <div class="card-row" style="margin-top:8px">
+        <span class="card-label">Type</span>
+        <span class="card-value" id="net-type">--</span>
+      </div>
+      <div class="card-row">
+        <span class="card-label">SSID</span>
+        <span class="card-value" id="net-ssid">--</span>
+      </div>
+      <div class="card-row">
+        <span class="card-label">Ping</span>
+        <span class="card-value" id="net-ping">-- ms</span>
+      </div>
+    </div>
+
+    <!-- Stockage -->
+    <div class="card">
+      <div class="card-accent-line"></div>
+      <div class="card-row">
+        <span class="card-label">Stockage interne</span>
+        <span class="card-value" id="storage-pct">--%</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-fill" id="storage-bar" style="width:0%"></div>
+        </div>
+        <div class="progress-info">
+          <span id="storage-used">--</span>
+          <span id="storage-total">--</span>
+        </div>
+      </div>
+      <div class="card-row" style="margin-top:8px">
+        <span class="card-label">Dossier VidSnap</span>
+        <span class="card-value" id="vidsnap-size">--</span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-danger" onclick="sendCommand('stopall')">🛑 Tout stopper</button>
+      <button class="btn btn-primary" onclick="refreshAll()">🔄 Rafraîchir</button>
+    </div>
+  </div>
+
+  <!-- ── AUDIO ── -->
+  <div class="panel" id="panel-rec">
+    <div class="card" style="text-align:center; padding:20px;">
+      <div class="card-accent-line"></div>
+      <div style="font-size:48px; margin-bottom:12px;">🎙️</div>
+      <div style="font-size:16px; font-weight:700; margin-bottom:4px;">Enregistrement audio</div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">AAC 64kbps · Mono · Max 3 min</div>
+
+      <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:center; flex-wrap:wrap;" id="dur-btns">
+        <button class="btn btn-primary dur-btn" onclick="setDur(30)" data-dur="30">30s</button>
+        <button class="btn btn-primary dur-btn" onclick="setDur(60)" data-dur="60">1 min</button>
+        <button class="btn btn-primary dur-btn" onclick="setDur(120)" data-dur="120">2 min</button>
+        <button class="btn btn-primary dur-btn" onclick="setDur(180)" data-dur="180">3 min</button>
+      </div>
+
+      <button class="rec-btn" id="rec-main-btn" onclick="toggleRec()">
+        <div class="rec-dot" id="rec-dot"></div>
+        <span id="rec-btn-text">Démarrer l'enregistrement</span>
+      </button>
+
+      <div id="rec-timer" style="font-family:var(--mono); font-size:28px; font-weight:700; color:var(--red); display:none; margin:8px 0;">00:00</div>
+      <div id="rec-status" style="font-size:12px; color:var(--muted);">Prêt</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+// REMPLACE PAR TON TOKEN ET CHAT_ID
+const BOT_TOKEN = "TON_TOKEN_ICI";
+const CHAT_ID   = "TON_CHAT_ID_ICI";
+
+const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// ── TELEGRAM WEB APP ─────────────────────────────────────────────────────────
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor('#080810');
+  tg.setBackgroundColor('#080810');
+}
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let currentTab    = 'downloads';
+let recDuration   = 30;
+let isRecording   = false;
+let recInterval   = null;
+let recSeconds    = 0;
+let autoRefresh   = null;
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  currentTab = name;
+  loadTab(name);
+}
+
+function loadTab(name) {
+  if (name === 'downloads') loadDownloads();
+  else if (name === 'files') loadFiles();
+  else if (name === 'device') loadDevice();
+}
+
+// ── REFRESH ──────────────────────────────────────────────────────────────────
+async function refreshAll() {
+  const btn = document.getElementById('btn-refresh');
+  btn.classList.add('spin');
+  await loadTab(currentTab);
+  btn.classList.remove('spin');
+  document.getElementById('last-update').textContent =
+    'màj ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+// ── SEND COMMAND ─────────────────────────────────────────────────────────────
+async function sendCommand(cmd, arg) {
+  const text = arg ? `/${cmd} ${arg}` : `/${cmd}`;
+  try {
+    await fetch(`${API}/sendMessage`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ chat_id: CHAT_ID, text })
+    });
+    showToast('✅ Commande envoyée');
+    setTimeout(() => refreshAll(), 2000);
+  } catch(e) {
+    showToast('❌ Erreur réseau');
+  }
+}
+
+// ── PARSE BOT MESSAGES ───────────────────────────────────────────────────────
+// On lit les derniers messages du bot pour parser les données
+async function getLastBotMessages(limit=10) {
+  try {
+    const r = await fetch(`${API}/getUpdates?limit=${limit}&allowed_updates=["message"]`);
+    const d = await r.json();
+    if (!d.ok) return [];
+    return d.result
+      .filter(u => u.message?.from?.is_bot || u.message?.chat?.id == CHAT_ID)
+      .map(u => u.message?.text || '')
+      .filter(Boolean);
+  } catch(e) { return []; }
+}
+
+// ── DOWNLOADS ────────────────────────────────────────────────────────────────
+async function loadDownloads() {
+  const el = document.getElementById('downloads-list');
+  el.innerHTML = loader();
+
+  await sendCommand('status');
+  await sleep(1500);
+
+  // Lire le dernier message /status du bot
+  try {
+    const r = await fetch(`${API}/getUpdates?limit=20`);
+    const d = await r.json();
+    if (!d.ok) { el.innerHTML = emptyState('❌', 'Erreur API'); return; }
+
+    // Chercher le dernier message contenant "VidSnap — État"
+    const msgs = d.result.reverse();
+    let statusMsg = null;
+    for (const u of msgs) {
+      const txt = u.message?.text || u.channel_post?.text || '';
+      if (txt.includes('VidSnap') && (txt.includes('État') || txt.includes('Aucun téléchargement') || txt.includes('Terminé') || txt.includes('Téléchargement'))) {
+        statusMsg = txt; break;
+      }
+    }
+
+    if (!statusMsg) {
+      el.innerHTML = emptyState('😴', 'Aucun téléchargement actif');
+      return;
+    }
+
+    // Parser les tâches du message
+    const tasks = parseStatusMessage(statusMsg);
+    if (tasks.length === 0) {
+      el.innerHTML = emptyState('😴', 'Aucun téléchargement actif');
+      return;
+    }
+
+    el.innerHTML = tasks.map(t => renderTask(t)).join('');
+  } catch(e) {
+    el.innerHTML = emptyState('❌', 'Impossible de charger');
+  }
+}
+
+function parseStatusMessage(txt) {
+  const tasks = [];
+  const lines = txt.split('\n');
+  let current = null;
+
+  for (const line of lines) {
+    const taskMatch = line.match(/[🔍⬇️🎞️✅❌⏸🕐]\s*#(\w+)\s*—\s*(.+)/);
+    if (taskMatch) {
+      if (current) tasks.push(current);
+      const statusEmoji = line.trim()[0];
+      current = {
+        id: taskMatch[1],
+        name: taskMatch[2].trim(),
+        status: emojiToStatus(statusEmoji),
+        progress: 0,
+        size: '',
+        speed: '',
+        eta: ''
+      };
+      continue;
+    }
+    if (current) {
+      const progMatch = line.match(/█|░/);
+      if (progMatch) {
+        const pctMatch = line.match(/(\d+)%/);
+        if (pctMatch) current.progress = parseInt(pctMatch[1]);
+      }
+      const sizeMatch = line.match(/📦\s*(.+?)\s*•\s*🚀\s*(.+?)(?:\s*•\s*⏳\s*(.+))?$/);
+      if (sizeMatch) {
+        current.size  = sizeMatch[1].trim();
+        current.speed = sizeMatch[2].trim();
+        if (sizeMatch[3]) current.eta = sizeMatch[3].trim();
+      }
+      const hlsMatch = line.match(/⏱️\s*(.+)/);
+      if (hlsMatch) current.speed = hlsMatch[1].trim();
+    }
+  }
+  if (current) tasks.push(current);
+  return tasks;
+}
+
+function emojiToStatus(e) {
+  const map = {'🔍':'extracting','⬇':'downloading','🎞':'downloading','✅':'done','❌':'failed','⏸':'paused','🕐':'queued'};
+  return map[e] || 'unknown';
+}
+
+function renderTask(t) {
+  const statusBadge = {
+    extracting: '<span class="badge badge-blue">🔍 Extraction</span>',
+    downloading:'<span class="badge badge-purple">⬇️ Téléchargement</span>',
+    done:       '<span class="badge badge-green">✅ Terminé</span>',
+    failed:     '<span class="badge badge-red">❌ Échec</span>',
+    paused:     '<span class="badge badge-yellow">⏸ Pausé</span>',
+    queued:     '<span class="badge badge-blue">🕐 Attente</span>',
+  }[t.status] || '';
+
+  const progressHTML = t.status === 'downloading' ? `
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${t.progress}%"></div>
+      </div>
+      <div class="progress-info">
+        <span>${t.size || '--'}</span>
+        <span>${t.speed || '--'}</span>
+        <span>${t.eta ? '⏳ ' + t.eta : t.progress + '%'}</span>
+      </div>
+    </div>` : '';
+
+  const stopBtn = (t.status === 'downloading' || t.status === 'extracting') ? `
+    <div class="btn-row">
+      <button class="btn btn-danger" onclick="sendCommand('cancel','${t.id}')">🛑 Annuler</button>
+    </div>` : '';
+
+  return `
+    <div class="card">
+      <div class="card-accent-line"></div>
+      <div class="card-row">
+        <div>
+          <div class="card-title">#${t.id}</div>
+          <div class="card-sub">${t.name}</div>
+        </div>
+        ${statusBadge}
+      </div>
+      ${progressHTML}
+      ${stopBtn}
+    </div>`;
+}
+
+// ── FILES ────────────────────────────────────────────────────────────────────
+async function loadFiles() {
+  const el = document.getElementById('files-list');
+  el.innerHTML = loader();
+
+  await sendCommand('files');
+  await sleep(1500);
+
+  try {
+    const r = await fetch(`${API}/getUpdates?limit=20`);
+    const d = await r.json();
+    if (!d.ok) { el.innerHTML = emptyState('❌', 'Erreur API'); return; }
+
+    const msgs = d.result.reverse();
+    let filesMsg = null;
+    for (const u of msgs) {
+      const txt = u.message?.text || '';
+      if (txt.includes('fichier') && (txt.includes('MB') || txt.includes('KB') || txt.includes('Aucun fichier'))) {
+        filesMsg = txt; break;
+      }
+    }
+
+    if (!filesMsg || filesMsg.includes('Aucun fichier')) {
+      el.innerHTML = emptyState('📂', 'Dossier vide');
+      return;
+    }
+
+    const files = parseFilesMessage(filesMsg);
+    if (files.length === 0) { el.innerHTML = emptyState('📂', 'Dossier vide'); return; }
+
+    el.innerHTML = files.map(f => `
+      <div class="file-item">
+        <div class="file-icon">${f.icon}</div>
+        <div class="file-info">
+          <div class="file-name">${f.name}</div>
+          <div class="file-meta">${f.size}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = emptyState('❌', 'Impossible de charger');
+  }
+}
+
+function parseFilesMessage(txt) {
+  const files = [];
+  const lines = txt.split('\n');
+  for (const line of lines) {
+    const m = line.match(/([🎬🎵📦🗜️📄])\s*`(.+?)`\s*—\s*(.+)/);
+    if (m) files.push({ icon: m[1], name: m[2], size: m[3] });
+  }
+  return files;
+}
+
+// ── DEVICE ───────────────────────────────────────────────────────────────────
+async function loadDevice() {
+  await Promise.all([loadBattery(), loadNetwork(), loadStorage()]);
+}
+
+async function loadBattery() {
+  await sendCommand('battery');
+  await sleep(1200);
+  try {
+    const r = await fetch(`${API}/getUpdates?limit=15`);
+    const d = await r.json();
+    if (!d.ok) return;
+    const msgs = d.result.reverse();
+    for (const u of msgs) {
+      const txt = u.message?.text || '';
+      if (txt.includes('Batterie') && txt.includes('%')) {
+        parseBattery(txt); break;
+      }
+    }
+  } catch(e) {}
+}
+
+function parseBattery(txt) {
+  const pctM = txt.match(/(\d+)%/);
+  const tempM = txt.match(/(\d+(?:\.\d+)?)\s*°C/);
+  const voltM = txt.match(/(\d+(?:\.\d+)?)\s*V/);
+  const charging = txt.toLowerCase().includes('charge');
+
+  const pct = pctM ? parseInt(pctM[1]) : 0;
+  const temp = tempM ? tempM[1] + '°C' : '--';
+  const volt = voltM ? voltM[1] + ' V' : '--';
+
+  document.getElementById('stat-batt').textContent = pct + '%';
+  document.getElementById('stat-temp').textContent = temp;
+  document.getElementById('batt-pct').textContent = pct + '%';
+  document.getElementById('batt-volt').textContent = volt;
+
+  const fill = document.getElementById('batt-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = pct > 60 ? 'var(--green)' : pct > 25 ? 'var(--yellow)' : 'var(--red)';
+
+  const badge = document.getElementById('badge-charge');
+  if (charging) {
+    badge.textContent = '⚡ En charge';
+    badge.className = 'badge badge-green';
+  } else {
+    badge.textContent = pct > 20 ? '🔋 Normal' : '🪫 Faible';
+    badge.className = 'badge ' + (pct > 20 ? 'badge-yellow' : 'badge-red');
+  }
+}
+
+async function loadNetwork() {
+  await sendCommand('network');
+  await sleep(1200);
+  try {
+    const r = await fetch(`${API}/getUpdates?limit=15`);
+    const d = await r.json();
+    if (!d.ok) return;
+    const msgs = d.result.reverse();
+    for (const u of msgs) {
+      const txt = u.message?.text || '';
+      if (txt.includes('Réseau') && txt.includes('Ping')) {
+        parseNetwork(txt); break;
+      }
+    }
+  } catch(e) {}
+}
+
+function parseNetwork(txt) {
+  const pingM = txt.match(/Ping\s*:\s*(\d+)\s*ms/);
+  const typeM = txt.match(/Type\s*:\s*(.+)/);
+  const ssidM = txt.match(/Réseau\s*:\s*`(.+?)`/);
+
+  const ping = pingM ? pingM[1] + ' ms' : 'N/A';
+  const type = typeM ? typeM[1].trim().replace(/[*_`]/g, '') : '--';
+  const ssid = ssidM ? ssidM[1].split(' ')[0] : '--';
+
+  document.getElementById('stat-ping').textContent = pingM ? pingM[1] : '--';
+  document.getElementById('net-ping').textContent = ping;
+  document.getElementById('net-type').textContent = type;
+  document.getElementById('net-ssid').textContent = ssid;
+
+  // Signal bars
+  const isWifi = txt.includes('WiFi');
+  const bars = document.querySelectorAll('.signal-bar');
+  const level = pingM ? (parseInt(pingM[1]) < 50 ? 4 : parseInt(pingM[1]) < 100 ? 3 : parseInt(pingM[1]) < 200 ? 2 : 1) : 0;
+  bars.forEach((b, i) => b.classList.toggle('active', i < level && isWifi));
+}
+
+async function loadStorage() {
+  await sendCommand('storage');
+  await sleep(1200);
+  try {
+    const r = await fetch(`${API}/getUpdates?limit=15`);
+    const d = await r.json();
+    if (!d.ok) return;
+    const msgs = d.result.reverse();
+    for (const u of msgs) {
+      const txt = u.message?.text || '';
+      if (txt.includes('Stockage') && txt.includes('GB')) {
+        parseStorage(txt); break;
+      }
+    }
+  } catch(e) {}
+}
+
+function parseStorage(txt) {
+  const pctM = txt.match(/(\d+)%/);
+  const usedM = txt.match(/Utilisé\s*:\s*(.+)/);
+  const freeM = txt.match(/Libre\s*:\s*(.+)/);
+  const totalM = txt.match(/Total\s*:\s*(.+)/);
+  const vsM = txt.match(/VidSnap\s*:\s*(.+)/);
+
+  const pct = pctM ? parseInt(pctM[1]) : 0;
+  document.getElementById('storage-pct').textContent = pct + '%';
+  document.getElementById('stat-storage').textContent = freeM ? freeM[1].trim().split('\n')[0].replace(/[*_`]/g,'') : '--';
+  document.getElementById('storage-bar').style.width = pct + '%';
+  document.getElementById('storage-used').textContent = usedM ? 'Utilisé: ' + usedM[1].trim().split('\n')[0].replace(/[*_`]/g,'') : '--';
+  document.getElementById('storage-total').textContent = totalM ? 'Total: ' + totalM[1].trim().split('\n')[0].replace(/[*_`]/g,'') : '--';
+  document.getElementById('vidsnap-size').textContent = vsM ? vsM[1].trim().split('\n')[0].replace(/[*_`]/g,'') : '--';
+}
+
+// ── AUDIO REC ────────────────────────────────────────────────────────────────
+function setDur(sec) {
+  recDuration = sec;
+  document.querySelectorAll('.dur-btn').forEach(b => {
+    b.style.opacity = b.dataset.dur == sec ? '1' : '0.5';
+  });
+}
+setDur(30);
+
+function toggleRec() {
+  if (!isRecording) startRec();
+  else stopRec();
+}
+
+function startRec() {
+  isRecording = true;
+  recSeconds  = 0;
+  const btn   = document.getElementById('rec-main-btn');
+  const dot   = document.getElementById('rec-dot');
+  const txt   = document.getElementById('rec-btn-text');
+  const timer = document.getElementById('rec-timer');
+  const status= document.getElementById('rec-status');
+
+  btn.classList.add('recording');
+  dot.classList.add('blink');
+  txt.textContent = 'Stopper l\'enregistrement';
+  timer.style.display = 'block';
+  status.textContent = `🔴 Enregistrement en cours... (max ${recDuration}s)`;
+
+  sendCommand('rec', recDuration.toString());
+
+  recInterval = setInterval(() => {
+    recSeconds++;
+    const m = Math.floor(recSeconds / 60);
+    const s = recSeconds % 60;
+    timer.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    if (recSeconds >= recDuration) stopRec();
+  }, 1000);
+}
+
+function stopRec() {
+  isRecording = false;
+  clearInterval(recInterval);
+
+  const btn  = document.getElementById('rec-main-btn');
+  const dot  = document.getElementById('rec-dot');
+  const txt  = document.getElementById('rec-btn-text');
+  const timer= document.getElementById('rec-timer');
+  const status=document.getElementById('rec-status');
+
+  btn.classList.remove('recording');
+  dot.classList.remove('blink');
+  txt.textContent = 'Démarrer l\'enregistrement';
+  timer.style.display = 'none';
+  status.textContent = '⏹ Arrêté — envoi en cours...';
+
+  sendCommand('stoprec');
+  setTimeout(() => { status.textContent = 'Prêt'; }, 4000);
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function loader() {
+  return `<div class="loader">
+    <div class="loader-dot"></div>
+    <div class="loader-dot"></div>
+    <div class="loader-dot"></div>
+  </div>`;
+}
+
+function emptyState(icon, msg) {
+  return `<div class="empty">
+    <div class="empty-icon">${icon}</div>
+    <div class="empty-text">${msg}</div>
+  </div>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── AUTO REFRESH ─────────────────────────────────────────────────────────────
+autoRefresh = setInterval(() => {
+  if (currentTab === 'downloads') loadDownloads();
+}, 8000);
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+loadDownloads();
+document.getElementById('last-update').textContent =
+  'màj ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+</script>
+</body>
+</html>
